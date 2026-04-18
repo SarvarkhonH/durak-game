@@ -1,0 +1,6 @@
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/" }],
+  "env": {
+    "VITE_SERVER_URL": "https://durak-server.onrender.com"
+  }
+}

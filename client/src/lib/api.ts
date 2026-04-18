@@ -1,0 +1,51 @@
+import axios from 'axios';
+
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+
+export const api = axios.create({ baseURL: SERVER_URL });
+
+export async function fetchPlayer(telegramId: number) {
+  const { data } = await api.get(`/api/player/${telegramId}`);
+  return data;
+}
+
+export async function fetchLeaderboard() {
+  const { data } = await api.get('/api/leaderboard');
+  return data;
+}
+
+export async function fetchHistory(telegramId: number) {
+  const { data } = await api.get(`/api/history/${telegramId}`);
+  return data;
+}
+
+// Admin
+export async function adminLogin(password: string) {
+  const { data } = await api.post('/admin/login', { password });
+  return data.token as string;
+}
+
+export async function adminDashboard(token: string) {
+  const { data } = await api.get('/admin/dashboard', { headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
+
+export async function adminPlayers(token: string, page = 1) {
+  const { data } = await api.get('/admin/players', { params: { page }, headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
+
+export async function adminPatchPlayer(token: string, telegramId: number, updates: object) {
+  const { data } = await api.patch(`/admin/player/${telegramId}`, updates, { headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
+
+export async function adminPatchSettings(token: string, settings: object) {
+  const { data } = await api.patch('/admin/settings', settings, { headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
+
+export async function adminGames(token: string, page = 1) {
+  const { data } = await api.get('/admin/games', { params: { page }, headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
