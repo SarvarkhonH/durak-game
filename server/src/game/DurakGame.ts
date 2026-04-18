@@ -190,6 +190,13 @@ export class DurakGame {
     return hand.some(c => tableRanks.has(c.rank));
   }
 
+  forceEnd(loserId: string) {
+    const players = [...this.state.hands.keys()];
+    this.state.loser = loserId;
+    this.state.winner = players.find(id => id !== loserId);
+    this.state.phase = 'finished';
+  }
+
   getPhase() { return this.state.phase; }
   getId() { return this.state.id; }
   getBet() { return this.state.bet; }
@@ -200,6 +207,7 @@ export class DurakGame {
   getHand(id: string) { return this.state.hands.get(id) ?? []; }
   getDuration() { return Math.round((Date.now() - this.state.startTime) / 1000); }
   getMoves() { return this.state.moves; }
+  getStartTime() { return this.state.startTime; }
 
   getStateFor(playerId: string, playerNames: Map<string, string>): GameState {
     const players = [...this.state.hands.entries()].map(([id, hand]) => ({

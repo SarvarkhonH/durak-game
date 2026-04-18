@@ -353,12 +353,40 @@ export function setupSocket(io: Server) {
       if (room.ai && room.game.getAttackerId() === 'ai') await runAITurn(data.gameId);
     });
 
+    // Surrender — player gives up, counts as a loss
+    socket.on('surrender', async (data: { gameId: string }) => {
+      const room = rooms.get(data.gameId);
+      if (!room || !socket.playerId) return;
+      // Mark the surrendering player as loser by force-finishing the game
+      room.game.forceEnd(socket.playerId);
+      broadcastState(data.gameId);
+      await endGame(data.gameId);
+    });
+
     socket.on('disconnect', () => {
       const idx = pvpQueue.findIndex(q => q.socket.id === socket.id);
       if (idx !== -1) pvpQueue.splice(idx, 1);
+      // If player disconnects during a game against AI, end the game (they lose)
+      for (const [roomId, room] of rooms) {
+        if (room.ai && room.sockets.has(socket.playerId ?? '')) {
+          room.game.forceEnd(socket.playerId ?? '');
+          endGame(roomId).catch(() => {});
+          break;
+        }
+      }
     });
   });
 }
+
+// Sweep abandoned rooms every 10 minutes
+setInterval(() => {
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  for (const [roomId, room] of rooms) {
+    if (room.game.getStartTime() < cutoff) {
+      rooms.delete(roomId);
+    }
+  }
+}, 10 * 60 * 1000);
 
 export function getRoomCount() { return rooms.size; }
 export function getQueueCount() { return pvpQueue.length; }
