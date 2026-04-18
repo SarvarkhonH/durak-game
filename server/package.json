@@ -16,12 +16,21 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "ts-node-dev": "^2.0.0"
+  },
+  "dependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^20.10.4",
     "@types/uuid": "^9.0.7",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.3.3"
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.3",
+    "socket.io": "^4.7.2",
+    "typescript": "^5.3.3",
+    "uuid": "^9.0.0"
   }
 }
