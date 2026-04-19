@@ -32,6 +32,11 @@ export default function App() {
       setPlayer(p);
     });
 
+    // Keep balance in sync after each game
+    socket.on('game_over', ({ newBalance }: { newBalance: number }) => {
+      setPlayer(prev => prev ? { ...prev, balance: newBalance } : prev);
+    });
+
     socket.on('error', ({ message }: { message: string }) => {
       if (!authedRef.current) setAuthError(message);
     });
@@ -49,6 +54,7 @@ export default function App() {
     return () => {
       socket.off('connect');
       socket.off('authenticated');
+      socket.off('game_over');
       socket.off('error');
       socket.off('reconnect');
     };

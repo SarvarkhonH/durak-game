@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { socket } from '../lib/socket';
-import { GameState, Card as CardType } from '../types';
+import { GameState, Card as CardType, GameMode } from '../types';
 import { OpponentArea } from '../components/OpponentArea';
 import { TableArea } from '../components/TableArea';
 import { TrumpDeck } from '../components/TrumpDeck';
 import { PlayerHand } from '../components/PlayerHand';
 import { GameResult } from '../components/GameResult';
 import { useTelegram } from '../hooks/useTelegram';
-import { sfx, voice, speakCard, startAmbience, stopAmbience } from '../lib/sounds';
+import { sfx, startAmbience, stopAmbience } from '../lib/sounds';
 
 interface GameOverData {
   winner: string;
@@ -20,7 +20,6 @@ interface GameOverData {
 }
 
 const SUIT_LABEL: Record<string, string> = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
-const SUIT_COLOR: Record<string, string> = { spades: '#f5c842', hearts: '#f5c842', diamonds: '#f5c842', clubs: '#f5c842' };
 
 export function GamePage() {
   const navigate = useNavigate();
@@ -31,10 +30,11 @@ export function GamePage() {
   const [waiting, setWaiting] = useState(true);
   const [defenseTarget, setDefenseTarget] = useState<string | null>(null);
   const [toast, setToast] = useState('');
-  const [voiceOn, setVoiceOn] = useState(true);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevPhaseRef = useRef<string>('');
-  const prevAttackerRef = useRef<string>('');
+
+  // Remember last game settings for "play again"
+  const lastBetRef = useRef<number>(10);
+  const lastModeRef = useRef<GameMode>('classic');
 
   function flash(msg: string, ms = 2000) {
     setToast(msg);
@@ -48,63 +48,26 @@ export function GamePage() {
       setGame(state);
       setWaiting(false);
       setDefenseTarget(null);
+      setResult(null);
+      lastBetRef.current = state.bet;
+      lastModeRef.current = state.gameMode;
       sfx.deal();
-      startAmbience(); // 🎵 casino music starts with game
-      const me = state.players.find(p => p.id === state.myId);
-      if (me?.isAttacker) voice.yourAttack();
-      else voice.defend();
+      startAmbience();
     });
 
     socket.on('game_update', (state: GameState) => {
-      const prevPhase = prevPhaseRef.current;
-      const prevAttacker = prevAttackerRef.current;
-      const me = state.players.find(p => p.id === state.myId);
-
       setGame(prev => {
-        // Play card sound + voice when table grows (bot played a card)
-        if (prev && state.table.length > prev.table.length) {
-          sfx.card();
-          // Announce the new card the bot just played (last on table)
-          const newPairs = state.table.slice(prev.table.length);
-          newPairs.forEach(pair => {
-            if (pair.defense && !prev.table.find(p => p.defense?.id === pair.defense!.id)) {
-              if (voiceOn) speakCard(pair.defense);
-            } else if (!prev.table.find(p => p.attack.id === pair.attack.id)) {
-              if (voiceOn) speakCard(pair.attack);
-            }
-          });
-        }
+        if (prev && state.table.length > prev.table.length) sfx.card();
         return state;
       });
-
       setDefenseTarget(null);
-
-      // Voice on phase/role change
-      const isMyAttack = state.phase === 'attack' && me?.isAttacker;
-      const isMyDefend = state.phase === 'defend' && me?.isDefender;
-      const attackerChanged = state.players.find(p => p.isAttacker)?.id !== prevAttacker;
-
-      if (voiceOn) {
-        if (state.phase === 'attack' && prevPhase !== 'attack' && isMyAttack) {
-          voice.yourAttack();
-        } else if (state.phase === 'defend' && prevPhase !== 'defend' && isMyDefend) {
-          voice.defend();
-        } else if (state.phase === 'attack' && attackerChanged) {
-          // new round started - bito
-          if (prevPhase === 'attack') voice.bito();
-        }
-      }
-
-      prevPhaseRef.current = state.phase;
-      prevAttackerRef.current = state.players.find(p => p.isAttacker)?.id ?? '';
     });
 
     socket.on('game_over', (data: GameOverData) => {
       const won = data.balanceChange > 0;
       haptic[won ? 'success' : 'error']();
-      stopAmbience(); // 🎵 stop music on game end
-      if (won) { sfx.win(); voice.win(); }
-      else     { sfx.lose(); voice.lose(); }
+      stopAmbience();
+      if (won) sfx.win(); else sfx.lose();
       setGame(null);
       setResult(data);
     });
@@ -118,9 +81,9 @@ export function GamePage() {
       socket.off('game_over');
       socket.off('waiting');
       socket.off('error');
-      stopAmbience(); // stop music when leaving game page
+      stopAmbience();
     };
-  }, [voiceOn]);
+  }, []);
 
   // ── Derived turn state ─────────────────────────────────────────────────────
   const me = game?.players.find(p => p.id === game.myId);
@@ -137,7 +100,6 @@ export function GamePage() {
       socket.emit('attack', { gameId: game.id, cardId: card.id });
       haptic.impact('light');
       sfx.card();
-      if (voiceOn) speakCard(card);
       return;
     }
 
@@ -149,13 +111,11 @@ export function GamePage() {
         socket.emit('defend', { gameId: game.id, cardId: card.id, targetId: undefended[0].attack.id });
         haptic.impact('light');
         sfx.card();
-        if (voiceOn) speakCard(card);
         setDefenseTarget(null);
       } else if (defenseTarget) {
         socket.emit('defend', { gameId: game.id, cardId: card.id, targetId: defenseTarget });
         haptic.impact('light');
         sfx.card();
-        if (voiceOn) speakCard(card);
         setDefenseTarget(null);
       } else {
         flash('Нажми на карту противника сначала');
@@ -168,7 +128,6 @@ export function GamePage() {
     if (!isMyDefend) return;
     setDefenseTarget(attackCardId);
     haptic.impact('light');
-    sfx.card();
     flash('Теперь выбери карту для защиты ↓', 1500);
   }, [isMyDefend, haptic]);
 
@@ -177,7 +136,6 @@ export function GamePage() {
     socket.emit('transfer', { gameId: game.id, cardId: card.id });
     haptic.impact('medium');
     sfx.transfer();
-    voice.transfer();
     setDefenseTarget(null);
   }
 
@@ -193,7 +151,6 @@ export function GamePage() {
     socket.emit('take', { gameId: game.id });
     haptic.impact('medium');
     sfx.take();
-    if (voiceOn) voice.take();
   }
 
   function handlePass() {
@@ -201,7 +158,12 @@ export function GamePage() {
     socket.emit('pass', { gameId: game.id });
     haptic.impact('medium');
     sfx.pass();
-    if (voiceOn) voice.bito();
+  }
+
+  function handlePlayAgain() {
+    setResult(null);
+    setWaiting(true);
+    socket.emit('join_ai_game', { bet: lastBetRef.current, gameMode: lastModeRef.current });
   }
 
   // ── Turn status bar ────────────────────────────────────────────────────────
@@ -212,7 +174,6 @@ export function GamePage() {
     return { text: '⏳ Ход бота...', bg: 'rgba(120,73,0,0.85)' };
   })();
 
-  // ── Transfer mode: show transfer button when applicable ────────────────────
   const showTransfer = isMyDefend && game?.canTransfer;
 
   // ── Result screen ──────────────────────────────────────────────────────────
@@ -224,7 +185,7 @@ export function GamePage() {
         newBalance={result.newBalance}
         winnerName={result.winnerName}
         loserName={result.loserName}
-        onPlayAgain={() => { setResult(null); navigate('/'); }}
+        onPlayAgain={handlePlayAgain}
         onHome={() => { setResult(null); navigate('/'); }}
       />
     );
@@ -235,9 +196,8 @@ export function GamePage() {
     return (
       <div
         className="flex flex-col items-center justify-center h-full gap-4"
-        style={{ background: 'linear-gradient(180deg, #060f06, #0d220d)' }}
+        style={{ background: 'linear-gradient(180deg, #0d2b18, #1a5228)' }}
       >
-        {/* Animated card */}
         <div style={{ position: 'relative', width: 72, height: 100 }}>
           {[0, 1, 2].map(i => (
             <div key={i} style={{
@@ -274,7 +234,7 @@ export function GamePage() {
     <div
       className="flex flex-col h-full overflow-hidden select-none"
       style={{
-        background: 'linear-gradient(180deg, #0a1f0a 0%, #1a3a1a 40%, #163016 100%)',
+        background: 'linear-gradient(180deg, #0d2b18 0%, #1a5228 40%, #174a23 100%)',
         touchAction: 'none',
       }}
     >
@@ -286,24 +246,18 @@ export function GamePage() {
         <TrumpDeck trumpCard={game.trumpCard} deckCount={game.deckCount} />
       </div>
 
-      {/* ── Bito pile (absolute top-left, below opponent bar) ── */}
+      {/* ── Bito pile (absolute top-left) ── */}
       {game.bitoCount > 0 && (
-        <div
-          className="absolute z-20 flex flex-col items-center"
-          style={{ top: 84, left: 10 }}
-        >
+        <div className="absolute z-20 flex flex-col items-center" style={{ top: 84, left: 10 }}>
           <div style={{
             width: 30, height: 42, borderRadius: 5,
-            background: 'rgba(0,0,0,0.55)',
+            background: 'rgba(0,0,0,0.45)',
             border: '1px solid rgba(255,255,255,0.15)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <span style={{ fontSize: 14 }}>🚫</span>
           </div>
-          <div style={{
-            marginTop: 2, fontSize: 10, fontWeight: 700,
-            color: 'rgba(255,255,255,0.5)',
-          }}>
+          <div style={{ marginTop: 2, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
             {game.bitoCount}
           </div>
         </div>
@@ -325,52 +279,42 @@ export function GamePage() {
         style={{ height: 44, background: turnConfig.bg, transition: 'background 300ms ease' }}
       >
         <span className="text-white font-bold text-sm">{turnConfig.text}</span>
-        {/* Game mode badge */}
         <span style={{
-          background: 'rgba(0,0,0,0.3)',
-          color: 'rgba(255,255,255,0.6)',
-          fontSize: 9,
-          fontWeight: 700,
-          padding: '2px 6px',
-          borderRadius: 8,
-          letterSpacing: 1,
+          background: 'rgba(0,0,0,0.3)', color: 'rgba(255,255,255,0.55)',
+          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, letterSpacing: 1,
         }}>
           {game.gameMode === 'transfer' ? 'ПЕРЕВОДНОЙ' : 'ПОДКИДНОЙ'}
         </span>
         <div className="flex items-center gap-2">
           {defenseTarget && (
-            <span className="text-yellow-300 text-[11px] font-medium animate-pulse">
-              Выбери ↓
-            </span>
+            <span className="text-yellow-300 text-[11px] font-medium animate-pulse">Выбери ↓</span>
           )}
           <span style={{ color: '#f5c842', fontWeight: 700, fontSize: 15 }}>
             {SUIT_LABEL[game.trumpSuit]}
           </span>
-          <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>
-            {game.bet}🪙
-          </span>
+          <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{game.bet}🪙</span>
         </div>
       </div>
 
       {/* ── Toast ── */}
       {toast && (
         <div className="flex-shrink-0 text-center text-sm py-2 px-4 animate-slide-up"
-             style={{ background: 'rgba(0,0,0,0.8)', color: '#fff' }}>
+             style={{ background: 'rgba(0,0,0,0.75)', color: '#fff' }}>
           {toast}
         </div>
       )}
 
       {/* ── Action buttons ── */}
-      {(isMyDefend || (isMyAttack && game.canPass) || isMyAttack) && (
-        <div className="flex gap-2 px-3 py-2 flex-shrink-0" style={{ background: 'rgba(0,0,0,0.3)' }}>
+      {(isMyDefend || isMyAttack) && (
+        <div className="flex gap-2 px-3 py-2 flex-shrink-0" style={{ background: 'rgba(0,0,0,0.25)' }}>
           {/* Take cards */}
           {isMyDefend && (
             <button
               onPointerDown={handleTake}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm text-white active:scale-95 transition-transform"
-              style={{ background: 'rgba(185,28,28,0.92)' }}
+              className="flex-1 py-3 rounded-2xl font-bold text-base text-white active:scale-95 transition-transform"
+              style={{ background: 'rgba(30,30,30,0.92)', border: '1px solid rgba(255,255,255,0.12)' }}
             >
-              📥 Взять
+              Беру
             </button>
           )}
 
@@ -389,17 +333,17 @@ export function GamePage() {
           {isMyAttack && game.canPass && (
             <button
               onPointerDown={handlePass}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm text-white active:scale-95 transition-transform"
-              style={{ background: 'rgba(21,128,61,0.92)' }}
+              className="flex-1 py-3 rounded-2xl font-bold text-base active:scale-95 transition-transform"
+              style={{ background: 'linear-gradient(135deg, #f5c842, #e8a000)', color: '#000' }}
             >
-              ✅ Бито!
+              Бито ✓
             </button>
           )}
 
           {/* Surrender */}
           <button
             onPointerDown={handleSurrender}
-            className="px-3 py-3 rounded-2xl text-white/35 text-sm active:scale-95 transition-transform"
+            className="px-3 py-3 rounded-2xl text-white/30 text-sm active:scale-95 transition-transform"
             style={{ background: 'rgba(0,0,0,0.3)' }}
             title="Сдаться"
           >
@@ -409,7 +353,7 @@ export function GamePage() {
       )}
 
       {/* ── Player hand ── */}
-      <div className="flex-shrink-0 pb-2" style={{ background: 'rgba(0,0,0,0.22)' }}>
+      <div className="flex-shrink-0 pb-2" style={{ background: 'rgba(0,0,0,0.18)' }}>
         <div className="text-center text-white/30 text-[11px] pt-1">
           {isMyAttack ? 'Нажми карту — атака' : isMyDefend ? 'Нажми карту — защита' : 'Ход соперника'}
         </div>
@@ -424,7 +368,7 @@ export function GamePage() {
   );
 }
 
-// ── TransferPicker: shows transfer-eligible cards in a mini popup ─────────────
+// ── TransferPicker ─────────────────────────────────────────────────────────────
 interface TransferPickerProps {
   hand: import('../types').Card[];
   table: import('../types').AttackPair[];
@@ -445,7 +389,7 @@ function TransferPicker({ hand, table, onTransfer, haptic }: TransferPickerProps
       <button
         onPointerDown={() => { setOpen(o => !o); haptic.impact('light'); sfx.card(); }}
         className="w-full py-3 rounded-2xl font-bold text-sm active:scale-95 transition-transform"
-        style={{ background: 'rgba(100, 50, 180, 0.92)', color: '#fff' }}
+        style={{ background: 'rgba(100, 50, 180, 0.92)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
       >
         🔄 Перевести
       </button>
@@ -454,13 +398,9 @@ function TransferPicker({ hand, table, onTransfer, haptic }: TransferPickerProps
           position: 'absolute', bottom: '110%', left: 0, right: 0,
           background: 'rgba(20,20,40,0.97)',
           border: '1px solid rgba(245,200,66,0.3)',
-          borderRadius: 14,
-          padding: '10px',
-          display: 'flex',
-          gap: 8,
-          justifyContent: 'center',
-          zIndex: 50,
-          boxShadow: '0 -4px 24px rgba(0,0,0,0.6)',
+          borderRadius: 14, padding: '10px',
+          display: 'flex', gap: 8, justifyContent: 'center',
+          zIndex: 50, boxShadow: '0 -4px 24px rgba(0,0,0,0.6)',
         }}>
           <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, position: 'absolute', top: 6, left: 0, right: 0, textAlign: 'center' }}>
             Выбери карту для перевода
@@ -476,20 +416,12 @@ function TransferPicker({ hand, table, onTransfer, haptic }: TransferPickerProps
                   style={{
                     width: 48, height: 68,
                     background: 'linear-gradient(145deg, #fefcf3, #f0ecd8)',
-                    borderRadius: 8,
-                    border: '2px solid #f5c842',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 2,
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                    borderRadius: 8, border: '2px solid #f5c842',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    gap: 2, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
                   }}
                 >
-                  <span style={{ fontSize: 16, fontWeight: 900, color: red ? '#c0392b' : '#111' }}>
-                    {card.rank}
-                  </span>
+                  <span style={{ fontSize: 16, fontWeight: 900, color: red ? '#c0392b' : '#111' }}>{card.rank}</span>
                   <span style={{ fontSize: 18, color: red ? '#c0392b' : '#111' }}>{sym}</span>
                 </button>
               );
