@@ -8,16 +8,31 @@ interface Props {
 }
 
 export function TrumpDeck({ trumpCard, deckCount }: Props) {
+  if (deckCount === 0) return null;
+
   return (
-    <div className="flex flex-col items-center gap-1">
-      {/* Trump card rotated 90° — lying sideways (Durak convention) */}
-      <div style={{ transform: 'rotate(90deg)', transformOrigin: 'center' }}>
+    <div className="flex flex-col items-center gap-1.5">
+      {/* Trump card lying sideways (Durak tradition) */}
+      <div style={{
+        transform: 'rotate(90deg)',
+        transformOrigin: 'center',
+        filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.5))',
+      }}>
         <CardFace card={trumpCard} size="mini" />
       </div>
 
-      {/* Deck count badge */}
-      <div className="bg-black/65 text-white font-bold rounded-full px-2 py-0.5 text-[11px] leading-none">
-        {deckCount > 0 ? deckCount : '—'}
+      {/* Deck count */}
+      <div style={{
+        background: 'rgba(0,0,0,0.75)',
+        color: '#fff',
+        fontWeight: 800,
+        borderRadius: 20,
+        padding: '2px 8px',
+        fontSize: 12,
+        lineHeight: 1.4,
+        border: '1px solid rgba(255,255,255,0.15)',
+      }}>
+        {deckCount}
       </div>
     </div>
   );

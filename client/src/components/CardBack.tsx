@@ -2,9 +2,9 @@ import React, { useId } from 'react';
 import { CardSize } from './CardFace';
 
 const DIMS: Record<CardSize, { w: number; h: number }> = {
-  hand:  { w: 56, h: 80  },
-  table: { w: 48, h: 68  },
-  mini:  { w: 36, h: 52  },
+  hand:  { w: 68, h: 96  },
+  table: { w: 62, h: 88  },
+  mini:  { w: 42, h: 60  },
 };
 
 interface Props {
@@ -14,49 +14,70 @@ interface Props {
 }
 
 export function CardBack({ size = 'hand', className = '', style }: Props) {
-  const id = useId().replace(/:/g, '');  // make valid SVG id
+  const id = useId().replace(/:/g, '');
   const { w, h } = DIMS[size];
+  const cell = 9;
 
   return (
     <div
       className={`card-base overflow-hidden ${className}`}
       style={{ width: w, height: h, flexShrink: 0, ...style }}
     >
-      {/* Deep blue gradient background */}
-      <div
-        className="absolute inset-0"
-        style={{ background: 'linear-gradient(135deg, #0f2d5a 0%, #1a4a8a 45%, #0f2d5a 100%)' }}
-      />
+      {/* Rich deep green gradient — casino back */}
+      <div className="absolute inset-0" style={{
+        background: 'linear-gradient(145deg, #0a3d20 0%, #1a6b3a 45%, #0e4a26 100%)',
+      }} />
 
-      {/* Diamond crosshatch SVG pattern */}
-      <svg
-        className="absolute inset-0 w-full h-full"
-        xmlns="http://www.w3.org/2000/svg"
-        style={{ opacity: 0.18 }}
-      >
+      {/* Argyle diamond pattern */}
+      <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <pattern id={`cbp-${id}`} x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
-            <path d="M5 0 L10 5 L5 10 L0 5 Z" fill="none" stroke="white" strokeWidth="0.6" />
+          {/* Large diamonds */}
+          <pattern id={`ld-${id}`} x="0" y="0" width={cell * 2} height={cell * 2} patternUnits="userSpaceOnUse">
+            <path
+              d={`M${cell} 0 L${cell * 2} ${cell} L${cell} ${cell * 2} L0 ${cell} Z`}
+              fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="0.7"
+            />
+          </pattern>
+          {/* Small inner diamonds */}
+          <pattern id={`sd-${id}`} x={cell * 0.5} y={cell * 0.5} width={cell * 2} height={cell * 2} patternUnits="userSpaceOnUse">
+            <path
+              d={`M${cell} 0 L${cell * 2} ${cell} L${cell} ${cell * 2} L0 ${cell} Z`}
+              fill="rgba(255,255,255,0.05)" stroke="none"
+            />
           </pattern>
         </defs>
-        <rect width="100%" height="100%" fill={`url(#cbp-${id})`} />
+        <rect width="100%" height="100%" fill={`url(#sd-${id})`} />
+        <rect width="100%" height="100%" fill={`url(#ld-${id})`} />
+      </svg>
+
+      {/* Diagonal cross lines inside diamonds */}
+      <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.12 }}>
+        <defs>
+          <pattern id={`x-${id}`} x="0" y="0" width={cell * 2} height={cell * 2} patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2={cell * 2} y2={cell * 2} stroke="white" strokeWidth="0.5" />
+            <line x1={cell * 2} y1="0" x2="0" y2={cell * 2} stroke="white" strokeWidth="0.5" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill={`url(#x-${id})`} />
       </svg>
 
       {/* Gold inset border */}
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          inset: 4,
-          border: '1px solid rgba(245,200,66,0.42)',
-          borderRadius: 6,
-        }}
-      />
+      <div className="absolute pointer-events-none" style={{
+        inset: 4,
+        border: '1.5px solid rgba(245,200,66,0.5)',
+        borderRadius: 6,
+      }} />
 
-      {/* Tiny centre spade */}
+      {/* Inner gold border (double border effect) */}
+      <div className="absolute pointer-events-none" style={{
+        inset: 7,
+        border: '1px solid rgba(245,200,66,0.2)',
+        borderRadius: 4,
+      }} />
+
+      {/* Centre spade in gold */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <span style={{ fontSize: Math.round(w * 0.38), color: 'rgba(245,200,66,0.38)', lineHeight: 1 }}>
-          ♠
-        </span>
+        <span style={{ fontSize: Math.round(w * 0.28), color: 'rgba(245,200,66,0.55)', lineHeight: 1 }}>♠</span>
       </div>
     </div>
   );

@@ -234,7 +234,11 @@ export function GamePage() {
     <div
       className="flex flex-col h-full overflow-hidden select-none"
       style={{
-        background: 'linear-gradient(180deg, #0d2b18 0%, #1a5228 40%, #174a23 100%)',
+        background: `
+          radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.04) 0%, transparent 65%),
+          repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.025) 4px, rgba(0,0,0,0.025) 5px),
+          linear-gradient(180deg, #0c2a16 0%, #1a5228 45%, #164820 100%)
+        `,
         touchAction: 'none',
       }}
     >
@@ -242,23 +246,24 @@ export function GamePage() {
       {opponent && <OpponentArea opponent={opponent} />}
 
       {/* ── Trump card (absolute top-right) ── */}
-      <div className="absolute top-[80px] right-3 z-20">
+      <div className="absolute top-[80px] right-2 z-20">
         <TrumpDeck trumpCard={game.trumpCard} deckCount={game.deckCount} />
       </div>
 
       {/* ── Bito pile (absolute top-left) ── */}
       {game.bitoCount > 0 && (
-        <div className="absolute z-20 flex flex-col items-center" style={{ top: 84, left: 10 }}>
+        <div className="absolute z-20 flex flex-col items-center" style={{ top: 80, left: 8 }}>
           <div style={{
-            width: 30, height: 42, borderRadius: 5,
-            background: 'rgba(0,0,0,0.45)',
-            border: '1px solid rgba(255,255,255,0.15)',
+            width: 34, height: 48, borderRadius: 6,
+            background: 'rgba(0,0,0,0.5)',
+            border: '1px solid rgba(255,255,255,0.12)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexDirection: 'column', gap: 2,
           }}>
-            <span style={{ fontSize: 14 }}>🚫</span>
-          </div>
-          <div style={{ marginTop: 2, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
-            {game.bitoCount}
+            <span style={{ fontSize: 16 }}>🚫</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,0.55)' }}>
+              {game.bitoCount}
+            </span>
           </div>
         </div>
       )}
@@ -353,7 +358,7 @@ export function GamePage() {
       )}
 
       {/* ── Player hand ── */}
-      <div className="flex-shrink-0 pb-2" style={{ background: 'rgba(0,0,0,0.18)' }}>
+      <div className="flex-shrink-0 pb-1" style={{ background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="text-center text-white/30 text-[11px] pt-1">
           {isMyAttack ? 'Нажми карту — атака' : isMyDefend ? 'Нажми карту — защита' : 'Ход соперника'}
         </div>
