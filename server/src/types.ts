@@ -13,6 +13,7 @@ export interface AttackPair {
 }
 
 export type GamePhase = 'attack' | 'defend' | 'finished';
+export type GameMode = 'classic' | 'transfer';
 
 export interface PlayerState {
   id: string;
@@ -30,11 +31,14 @@ export interface GameState {
   trumpCard: Card;
   trumpSuit: Suit;
   deckCount: number;
+  bitoCount: number;
   table: AttackPair[];
   players: PlayerState[];
   myCards: Card[];
   myId: string;
   canPass: boolean;
+  canTransfer: boolean;
+  gameMode: GameMode;
   winner?: string;
   loser?: string;
   message: string;

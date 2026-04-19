@@ -87,6 +87,30 @@ export class AIPlayer {
     }
   }
 
+  // Transfer Durak: should AI transfer the attack back?
+  shouldTransfer(
+    hand: Card[],
+    table: AttackPair[],
+    opponentCardCount: number,
+    trumpSuit: Suit
+  ): { should: boolean; card: Card | null } {
+    if (table.length === 0 || table.some(p => p.defense)) return { should: false, card: null };
+    if (table.length + 1 > opponentCardCount) return { should: false, card: null };
+
+    const tableRanks = new Set(table.map(p => p.attack.rank));
+    const transferable = hand.filter(c => tableRanks.has(c.rank));
+    if (transferable.length === 0) return { should: false, card: null };
+
+    // Prefer non-trump cards for the transfer
+    const nonTrumpOpts = transferable.filter(c => c.suit !== trumpSuit);
+    const best = nonTrumpOpts.length > 0
+      ? nonTrumpOpts.sort((a, b) => RANK_VALUES[a.rank] - RANK_VALUES[b.rank])[0]
+      : transferable[0];
+
+    const threshold = this.isOptimal() ? 0.70 : 0.35;
+    return { should: Math.random() < threshold, card: best };
+  }
+
   setDifficulty(d: number) {
     this.difficulty = Math.max(0, Math.min(100, d));
   }

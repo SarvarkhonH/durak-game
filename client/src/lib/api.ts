@@ -55,6 +55,16 @@ export async function adminActiveGames(token: string) {
   return data as { rooms: ActiveRoom[]; queue: number };
 }
 
+export async function fetchBonus(telegramId: number) {
+  const { data } = await api.get(`/api/bonus/${telegramId}`);
+  return data as { available: boolean; nextAt: number | null; amount: number };
+}
+
+export async function claimBonus(telegramId: number) {
+  const { data } = await api.post(`/api/bonus/${telegramId}`);
+  return data as { success: boolean; newBalance: number; amount: number };
+}
+
 export interface ActiveRoom {
   roomId: string;
   bet: number;

@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io';
-import { DurakGame } from '../game/DurakGame';
+import { DurakGame, GameMode } from '../game/DurakGame';
 import { AIPlayer } from '../game/AIPlayer';
 import { Player } from '../models/Player';
 import { GameRecord } from '../models/GameRecord';
@@ -107,6 +107,22 @@ async function runAITurn(roomId: string) {
   } else if (phase === 'defend' && game.getDefenderId() === 'ai') {
     const state = game.getStateFor('ai', room.names);
     const undefended = state.table.filter(p => !p.defense);
+
+    // Transfer mode: AI may transfer the attack back
+    if (game.canTransfer('ai') && room.ai) {
+      const opponentId = game.getAttackerId();
+      const opponentCardCount = game.getHand(opponentId).length;
+      const { should, card } = room.ai.shouldTransfer(
+        game.getHand('ai'), state.table, opponentCardCount, state.trumpSuit
+      );
+      if (should && card) {
+        game.transfer('ai', card.id);
+        broadcastState(roomId);
+        if (game.getPhase() === 'finished') { await endGame(roomId); return; }
+        // Player must now defend — stop AI turn
+        return;
+      }
+    }
 
     if (room.ai.shouldTake(game.getHand('ai'), state.table, state.trumpSuit)) {
       game.takeCards('ai');
@@ -273,10 +289,11 @@ export function setupSocket(io: Server) {
       });
     });
 
-    socket.on('join_ai_game', async (data: { bet: number }) => {
+    socket.on('join_ai_game', async (data: { bet: number; gameMode?: GameMode }) => {
       if (!socket.playerId || !socket.telegramId) { socket.emit('error', { message: 'Not authenticated' }); return; }
 
       const bet = Math.max(10, Math.min(data.bet ?? 10, 500));
+      const gameMode: GameMode = data.gameMode === 'transfer' ? 'transfer' : 'classic';
       const player = await Player.findOne({ telegramId: socket.telegramId });
       if (!player || player.balance < bet) {
         socket.emit('error', { message: 'Insufficient balance' }); return;
@@ -288,7 +305,7 @@ export function setupSocket(io: Server) {
       });
 
       const playerId = socket.playerId;
-      const game = new DurakGame([playerId, 'ai'], bet);
+      const game = new DurakGame([playerId, 'ai'], bet, gameMode);
       const ai = new AIPlayer(difficulty);
 
       const names = new Map<string, string>([
@@ -378,6 +395,17 @@ export function setupSocket(io: Server) {
       broadcastState(data.gameId);
       if (room.game.getPhase() === 'finished') { await endGame(data.gameId); return; }
       if (room.ai && room.game.getAttackerId() === 'ai') await runAITurn(data.gameId);
+    });
+
+    socket.on('transfer', async (data: { gameId: string; cardId: string }) => {
+      const room = rooms.get(data.gameId);
+      if (!room || !socket.playerId) return;
+      const result = room.game.transfer(socket.playerId, data.cardId);
+      if (!result.ok) { socket.emit('error', { message: result.error }); return; }
+      broadcastState(data.gameId);
+      if (room.game.getPhase() === 'finished') { await endGame(data.gameId); return; }
+      // If AI is now the defender after transfer, run AI turn
+      if (room.ai && room.game.getDefenderId() === 'ai') await runAITurn(data.gameId);
     });
 
     // Surrender — player gives up, counts as a loss
