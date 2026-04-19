@@ -8,7 +8,7 @@ import { TrumpDeck } from '../components/TrumpDeck';
 import { PlayerHand } from '../components/PlayerHand';
 import { GameResult } from '../components/GameResult';
 import { useTelegram } from '../hooks/useTelegram';
-import { sfx, voice, speakCard } from '../lib/sounds';
+import { sfx, voice, speakCard, startAmbience, stopAmbience } from '../lib/sounds';
 
 interface GameOverData {
   winner: string;
@@ -49,6 +49,7 @@ export function GamePage() {
       setWaiting(false);
       setDefenseTarget(null);
       sfx.deal();
+      startAmbience(); // 🎵 casino music starts with game
       const me = state.players.find(p => p.id === state.myId);
       if (me?.isAttacker) voice.yourAttack();
       else voice.defend();
@@ -101,6 +102,7 @@ export function GamePage() {
     socket.on('game_over', (data: GameOverData) => {
       const won = data.balanceChange > 0;
       haptic[won ? 'success' : 'error']();
+      stopAmbience(); // 🎵 stop music on game end
       if (won) { sfx.win(); voice.win(); }
       else     { sfx.lose(); voice.lose(); }
       setGame(null);
@@ -116,6 +118,7 @@ export function GamePage() {
       socket.off('game_over');
       socket.off('waiting');
       socket.off('error');
+      stopAmbience(); // stop music when leaving game page
     };
   }, [voiceOn]);
 
@@ -401,16 +404,6 @@ export function GamePage() {
             title="Сдаться"
           >
             🏳️
-          </button>
-
-          {/* Voice toggle */}
-          <button
-            onPointerDown={() => setVoiceOn(v => !v)}
-            className="px-3 py-3 rounded-2xl text-sm active:scale-95 transition-transform"
-            style={{ background: 'rgba(0,0,0,0.3)', color: voiceOn ? '#f5c842' : 'rgba(255,255,255,0.25)' }}
-            title="Голос вкл/выкл"
-          >
-            {voiceOn ? '🔊' : '🔇'}
           </button>
         </div>
       )}
