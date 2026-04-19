@@ -102,37 +102,7 @@ export async function handleUpdate(update: Record<string, unknown>) {
 
   // ── /balance ──────────────────────────────────────────────────────────────
   if (text === '/balance') {
-    const player = await Player.findOne({ telegramId });
-    if (!player) {
-      await tgApi('sendMessage', { chat_id: chatId, text: '❌ Сначала запусти игру: /start' });
-      return;
-    }
-    const winRate = player.gamesPlayed > 0
-      ? Math.round((player.wins / player.gamesPlayed) * 100)
-      : 0;
-    await tgApi('sendMessage', {
-      chat_id: chatId,
-      text: [
-        `💼 *Профиль игрока*`,
-        ``,
-        `👤 ${player.firstName}`,
-        `💰 Баланс: *${player.balance} монет* 🪙`,
-        ``,
-        `🏆 Победы: ${player.wins}`,
-        `💀 Поражения: ${player.losses}`,
-        `🎮 Игр сыграно: ${player.gamesPlayed}`,
-        `📊 Процент побед: *${winRate}%*`,
-        player.consecutiveWins > 1 ? `🔥 Серия побед: ${player.consecutiveWins}` : '',
-        player.consecutiveLosses > 1 ? `❄️ Серия поражений: ${player.consecutiveLosses}` : '',
-      ].filter(Boolean).join('\n'),
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [[
-          { text: '🎮 Играть', web_app: { url: CLIENT_URL } },
-          { text: '🏆 Рейтинг', callback_data: 'leaderboard' },
-        ]],
-      },
-    });
+    await sendBalance(chatId, telegramId);
     return;
   }
 
@@ -248,9 +218,84 @@ export async function handleUpdate(update: Record<string, unknown>) {
 
 async function handleCallback(query: Record<string, unknown>) {
   const chatId = ((query.message as Record<string, unknown>)?.chat as Record<string, unknown>)?.id as number;
+  const telegramId = ((query.from as Record<string, unknown>)?.id) as number;
   const data = query.data as string;
-  if (data === 'leaderboard') await sendLeaderboard(chatId);
+
+  if (data === 'leaderboard') {
+    await sendLeaderboard(chatId);
+  } else if (data === 'balance') {
+    await sendBalance(chatId, telegramId);
+  } else if (data === 'bonus_link') {
+    await sendBonusCallback(chatId, telegramId);
+  }
+
   await tgApi('answerCallbackQuery', { callback_query_id: query.id });
+}
+
+async function sendBalance(chatId: number, telegramId: number) {
+  const player = await Player.findOne({ telegramId });
+  if (!player) {
+    await tgApi('sendMessage', { chat_id: chatId, text: '❌ Сначала запусти игру: /start' });
+    return;
+  }
+  const winRate = player.gamesPlayed > 0
+    ? Math.round((player.wins / player.gamesPlayed) * 100)
+    : 0;
+  await tgApi('sendMessage', {
+    chat_id: chatId,
+    text: [
+      `💼 *Профиль игрока*`,
+      ``,
+      `👤 ${player.firstName}`,
+      `💰 Баланс: *${player.balance} монет* 🪙`,
+      ``,
+      `🏆 Победы: ${player.wins}`,
+      `💀 Поражения: ${player.losses}`,
+      `🎮 Игр сыграно: ${player.gamesPlayed}`,
+      `📊 Процент побед: *${winRate}%*`,
+      player.consecutiveWins > 1 ? `🔥 Серия побед: ${player.consecutiveWins}` : '',
+      player.consecutiveLosses > 1 ? `❄️ Серия поражений: ${player.consecutiveLosses}` : '',
+    ].filter(Boolean).join('\n'),
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [[
+        { text: '🎮 Играть', web_app: { url: CLIENT_URL } },
+        { text: '🏆 Рейтинг', callback_data: 'leaderboard' },
+      ]],
+    },
+  });
+}
+
+async function sendBonusCallback(chatId: number, telegramId: number) {
+  const player = await Player.findOne({ telegramId });
+  if (!player) {
+    await tgApi('sendMessage', { chat_id: chatId, text: '❌ Сначала запусти игру: /start' });
+    return;
+  }
+  const now = Date.now();
+  const lastClaim = player.lastBonusClaim?.getTime() ?? 0;
+  const INTERVAL = 24 * 3600 * 1000;
+  if (now - lastClaim >= INTERVAL) {
+    player.balance += 50;
+    player.lastBonusClaim = new Date();
+    await player.save();
+    await tgApi('sendMessage', {
+      chat_id: chatId,
+      text: `🎁 *Бонус получен!*\n\n+50 монет зачислено на счёт 🪙\nТекущий баланс: *${player.balance} монет*\n\nСледующий бонус через 24 часа.`,
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: [[{ text: '🎮 Играть сейчас', web_app: { url: CLIENT_URL } }]] },
+    });
+  } else {
+    const nextMs = lastClaim + INTERVAL - now;
+    const h = Math.floor(nextMs / 3600000);
+    const m = Math.floor((nextMs % 3600000) / 60000);
+    await tgApi('sendMessage', {
+      chat_id: chatId,
+      text: `⏰ Бонус уже получен!\n\nСледующий через *${h}ч ${m}м*\nБаланс: *${player.balance} монет* 🪙`,
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: [[{ text: '🎮 Играть', web_app: { url: CLIENT_URL } }]] },
+    });
+  }
 }
 
 async function sendWelcome(chatId: number, name: string, isNew: boolean) {

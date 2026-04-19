@@ -84,14 +84,28 @@ async function runAITurn(roomId: string) {
         // Now player attacks — wait
         return;
       }
-      game.attack('ai', card.id);
+      const attackResult = game.attack('ai', card.id);
+      if (!attackResult.ok) {
+        // Defender has too few cards — pass instead
+        game.passAttack('ai');
+        broadcastState(roomId);
+        if (game.getPhase() === 'finished') { await endGame(roomId); return; }
+        return;
+      }
       broadcastState(roomId);
       await delay(300);
     } else if (game.getStateFor('ai', room.names).table.length === 0) {
       const state = game.getStateFor('ai', room.names);
       const card = room.ai.chooseAttackCard(game.getHand('ai'), [], state.trumpSuit);
       if (card) {
-        game.attack('ai', card.id);
+        const attackResult = game.attack('ai', card.id);
+        if (!attackResult.ok) {
+          // Should not happen on first attack, but guard anyway
+          game.passAttack('ai');
+          broadcastState(roomId);
+          if (game.getPhase() === 'finished') { await endGame(roomId); return; }
+          return;
+        }
         broadcastState(roomId);
       } else {
         // AI has no cards — end round, triggers game over check

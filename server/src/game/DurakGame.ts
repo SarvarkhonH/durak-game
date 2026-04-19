@@ -248,6 +248,12 @@ export class DurakGame {
   canAddMore(playerId: string): boolean {
     if (playerId !== this.state.attackerId) return false;
     if (this.state.table.length === 0) return false;
+
+    // Defender must be able to receive one more card
+    const defHand = this.state.hands.get(this.state.defenderId)!;
+    const unbeaten = this.state.table.filter(p => !p.defense).length;
+    if (unbeaten + 1 > defHand.length) return false;
+
     const hand = this.state.hands.get(playerId)!;
     const tableRanks = new Set(
       this.state.table.flatMap(p => [p.attack.rank, p.defense?.rank]).filter(Boolean)

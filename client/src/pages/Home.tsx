@@ -115,7 +115,7 @@ export function Home({ player }: Props) {
   function startGame() {
     if (!player) return;
     const amount = parseInt(bet) || 0;
-    if (amount < 1) { setError('Минимальная ставка 1 монета'); return; }
+    if (amount < 10) { setError('Минимальная ставка 10 монет'); return; }
     if (amount > currentBalance) { setError('Недостаточно монет!'); return; }
     setError('');
     haptic.impact('medium');
