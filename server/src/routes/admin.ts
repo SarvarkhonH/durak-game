@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { Player } from '../models/Player';
 import { GameRecord } from '../models/GameRecord';
-import { getRoomCount, getQueueCount, setGlobalDifficulty, getGlobalDifficulty } from '../socket/handler';
+import { getRoomCount, getQueueCount, setGlobalDifficulty, getGlobalDifficulty, getActiveRooms } from '../socket/handler';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
@@ -87,6 +87,11 @@ router.get('/games', auth, async (req, res) => {
   const games = await GameRecord.find().sort({ createdAt: -1 }).skip((page - 1) * 50).limit(50);
   const total = await GameRecord.countDocuments();
   res.json({ games, total });
+});
+
+// Live active rooms — polled by admin panel every 5s
+router.get('/active-games', auth, (_req, res) => {
+  res.json({ rooms: getActiveRooms(), queue: getQueueCount() });
 });
 
 export default router;

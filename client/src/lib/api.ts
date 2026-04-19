@@ -49,3 +49,19 @@ export async function adminGames(token: string, page = 1) {
   const { data } = await api.get('/admin/games', { params: { page }, headers: { Authorization: `Bearer ${token}` } });
   return data;
 }
+
+export async function adminActiveGames(token: string) {
+  const { data } = await api.get('/admin/active-games', { headers: { Authorization: `Bearer ${token}` } });
+  return data as { rooms: ActiveRoom[]; queue: number };
+}
+
+export interface ActiveRoom {
+  roomId: string;
+  bet: number;
+  phase: string;
+  duration: number;
+  moves: number;
+  isAI: boolean;
+  aiDifficulty: number | null;
+  players: { id: string; name: string }[];
+}

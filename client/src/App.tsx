@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { socket, connectSocket } from './lib/socket';
 import { PlayerData } from './types';
@@ -12,6 +12,9 @@ export default function App() {
   const { user } = useTelegram();
   const [player, setPlayer] = useState<PlayerData | null>(null);
   const [authError, setAuthError] = useState('');
+  // Track whether we are already authenticated so game-phase errors
+  // don't overwrite the whole UI with the auth-error screen.
+  const authedRef = useRef(false);
 
   useEffect(() => {
     connectSocket();
@@ -27,14 +30,18 @@ export default function App() {
     });
 
     socket.on('authenticated', ({ player: p }: { player: PlayerData }) => {
+      authedRef.current = true;
       setPlayer(p);
     });
 
+    // Only treat errors as fatal auth failures before the player is authed.
+    // After auth, game-level errors are handled by GamePage's own handler.
     socket.on('error', ({ message }: { message: string }) => {
-      setAuthError(message);
+      if (!authedRef.current) {
+        setAuthError(message);
+      }
     });
 
-    // Re-auth on reconnect
     socket.on('reconnect', () => {
       if (user) {
         socket.emit('auth', {

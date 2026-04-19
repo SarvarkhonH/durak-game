@@ -21,6 +21,16 @@ interface ActiveRoom {
 const rooms = new Map<string, ActiveRoom>();
 const pvpQueue: { socket: AuthSocket; bet: number }[] = [];
 
+const OPPONENT_NAMES = [
+  'Алексей', 'Дмитрий', 'Михаил', 'Андрей', 'Сергей',
+  'Иван', 'Николай', 'Артём', 'Максим', 'Роман',
+  'Тимур', 'Данияр', 'Жасур', 'Санжар', 'Бехруз',
+  'Камол', 'Шерзод', 'Фаррух', 'Улугбек', 'Нодир',
+];
+function randomOpponentName() {
+  return OPPONENT_NAMES[Math.floor(Math.random() * OPPONENT_NAMES.length)];
+}
+
 const GLOBAL_AI_DIFFICULTY = { value: 65 };
 export function setGlobalDifficulty(v: number) { GLOBAL_AI_DIFFICULTY.value = v; }
 export function getGlobalDifficulty() { return GLOBAL_AI_DIFFICULTY.value; }
@@ -78,10 +88,16 @@ async function runAITurn(roomId: string) {
       broadcastState(roomId);
       await delay(300);
     } else if (game.getStateFor('ai', room.names).table.length === 0) {
-      const card = room.ai.chooseAttackCard(game.getHand('ai'), [], game.getStateFor('ai', room.names).trumpSuit);
+      const state = game.getStateFor('ai', room.names);
+      const card = room.ai.chooseAttackCard(game.getHand('ai'), [], state.trumpSuit);
       if (card) {
         game.attack('ai', card.id);
         broadcastState(roomId);
+      } else {
+        // AI has no cards — end round, triggers game over check
+        game.passAttack('ai');
+        broadcastState(roomId);
+        if (game.getPhase() === 'finished') { await endGame(roomId); return; }
       }
     } else {
       game.passAttack('ai');
@@ -145,47 +161,58 @@ async function endGame(roomId: string) {
   const loser = game.getLoser();
   const bet = game.getBet();
 
-  // Update human player stats
   for (const [pid, sock] of room.sockets) {
     if (!sock.telegramId) continue;
     const isWinner = pid === winner;
     const balanceChange = isWinner ? bet : -bet;
 
-    const player = await Player.findOneAndUpdate(
-      { telegramId: sock.telegramId },
-      {
-        $inc: {
-          balance: balanceChange,
-          wins: isWinner ? 1 : 0,
-          losses: isWinner ? 0 : 1,
-          gamesPlayed: 1,
-          totalWagered: bet,
-          consecutiveLosses: isWinner ? 0 : 1,
-          consecutiveWins: isWinner ? 1 : 0,
-        },
-        $set: {
-          lastActive: new Date(),
-          ...(isWinner ? { consecutiveLosses: 0 } : { consecutiveWins: 0 }),
-        }
-      },
-      { new: true }
-    );
+    try {
+      const incFields: Record<string, number> = {
+        balance: balanceChange,
+        gamesPlayed: 1,
+        totalWagered: bet,
+      };
+      const setFields: Record<string, unknown> = { lastActive: new Date() };
+      if (isWinner) {
+        incFields.wins = 1;
+        incFields.consecutiveWins = 1;
+        setFields.consecutiveLosses = 0;
+      } else {
+        incFields.losses = 1;
+        incFields.consecutiveLosses = 1;
+        setFields.consecutiveWins = 0;
+      }
 
-    const safeBalance = (player?.balance ?? 0) < 10
-      ? await Player.findOneAndUpdate({ telegramId: sock.telegramId }, { $inc: { balance: 10 } }, { new: true }).then(p => p?.balance ?? 10)
-      : player?.balance ?? 0;
+      let player = await Player.findOneAndUpdate(
+        { telegramId: sock.telegramId },
+        { $inc: incFields, $set: setFields },
+        { new: true }
+      );
 
-    sock.emit('game_over', {
-      winner,
-      loser,
-      balanceChange,
-      newBalance: Math.max(0, safeBalance),
-      winnerName: room.names.get(winner ?? '') ?? 'Unknown',
-      loserName: room.names.get(loser ?? '') ?? 'Unknown',
-    });
+      if (player && player.balance < 10) {
+        player = await Player.findOneAndUpdate(
+          { telegramId: sock.telegramId },
+          { $inc: { balance: 10 } },
+          { new: true }
+        );
+      }
+
+      sock.emit('game_over', {
+        winner, loser, balanceChange,
+        newBalance: Math.max(0, player?.balance ?? 0),
+        winnerName: room.names.get(winner ?? '') ?? 'Unknown',
+        loserName: room.names.get(loser ?? '') ?? 'Unknown',
+      });
+    } catch (err) {
+      console.error('endGame DB error:', err);
+      sock.emit('game_over', {
+        winner, loser, balanceChange, newBalance: 0,
+        winnerName: room.names.get(winner ?? '') ?? 'Unknown',
+        loserName: room.names.get(loser ?? '') ?? 'Unknown',
+      });
+    }
   }
 
-  // Save game record
   if (winner && loser) {
     const winnerTid = [...room.sockets.entries()].find(([id]) => id === winner)?.[1].telegramId ?? 0;
     const loserTid = [...room.sockets.entries()].find(([id]) => id === loser)?.[1].telegramId ?? 0;
@@ -200,7 +227,7 @@ async function endGame(roomId: string) {
       totalMoves: game.getMoves(),
       aiDifficulty: room.aiDifficulty,
       forcedOutcome: false,
-    });
+    }).catch(() => {});
   }
 
   rooms.delete(roomId);
@@ -266,7 +293,7 @@ export function setupSocket(io: Server) {
 
       const names = new Map<string, string>([
         [playerId, player.firstName],
-        ['ai', '🤖 Bot'],
+        ['ai', randomOpponentName()],
       ]);
 
       const roomId = game.getId();
@@ -390,3 +417,16 @@ setInterval(() => {
 
 export function getRoomCount() { return rooms.size; }
 export function getQueueCount() { return pvpQueue.length; }
+
+export function getActiveRooms() {
+  return [...rooms.entries()].map(([roomId, room]) => ({
+    roomId,
+    bet: room.game.getBet(),
+    phase: room.game.getPhase(),
+    duration: room.game.getDuration(),
+    moves: room.game.getMoves(),
+    isAI: !!room.ai,
+    aiDifficulty: room.aiDifficulty ?? null,
+    players: [...room.names.entries()].map(([id, name]) => ({ id, name })),
+  }));
+}
