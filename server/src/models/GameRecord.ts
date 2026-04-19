@@ -11,6 +11,7 @@ export interface IGameRecord extends Document {
   totalMoves: number;
   aiDifficulty?: number;
   forcedOutcome: boolean;
+  gameMode: 'classic' | 'transfer';
   createdAt: Date;
 }
 
@@ -25,6 +26,7 @@ const GameRecordSchema = new Schema<IGameRecord>({
   totalMoves: { type: Number, default: 0 },
   aiDifficulty: { type: Number },
   forcedOutcome: { type: Boolean, default: false },
+  gameMode: { type: String, enum: ['classic', 'transfer'], default: 'classic' },
 }, { timestamps: true });
 
 export const GameRecord = model<IGameRecord>('GameRecord', GameRecordSchema);

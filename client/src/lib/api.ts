@@ -45,6 +45,21 @@ export async function adminPatchSettings(token: string, settings: object) {
   return data;
 }
 
+export async function adminRevenue(token: string) {
+  const { data } = await api.get('/admin/revenue', { headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
+
+export async function adminBroadcast(token: string, message: string, activeDays = 30) {
+  const { data } = await api.post('/admin/broadcast', { message, activeDays }, { headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
+
+export async function adminReEngage(token: string) {
+  const { data } = await api.post('/admin/re-engage', {}, { headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
+
 export async function adminGames(token: string, page = 1) {
   const { data } = await api.get('/admin/games', { params: { page }, headers: { Authorization: `Bearer ${token}` } });
   return data;

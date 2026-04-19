@@ -119,6 +119,20 @@ function speak(text: string, interrupt = false, rate = 1.0): void {
   } catch { /* silently fail */ }
 }
 
+// ── Russian card name pronunciation ──────────────────────────────────────────
+const RANK_RU: Record<string, string> = {
+  '6': 'шестёрка', '7': 'семёрка', '8': 'восьмёрка', '9': 'девятка',
+  '10': 'десятка', 'J': 'валет', 'Q': 'дама', 'K': 'король', 'A': 'туз',
+};
+const SUIT_RU: Record<string, string> = {
+  spades: 'пик', hearts: 'червей', diamonds: 'бубей', clubs: 'трефей',
+};
+
+export function speakCard(card: { rank: string; suit: string }): void {
+  const name = `${RANK_RU[card.rank] ?? card.rank} ${SUIT_RU[card.suit] ?? ''}`;
+  speak(name, false, 1.15);
+}
+
 export const voice = {
   yourAttack:  () => speak('Атака!', true, 1.1),
   defend:      () => speak('Защита!', true, 1.1),

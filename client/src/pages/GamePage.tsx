@@ -8,7 +8,7 @@ import { TrumpDeck } from '../components/TrumpDeck';
 import { PlayerHand } from '../components/PlayerHand';
 import { GameResult } from '../components/GameResult';
 import { useTelegram } from '../hooks/useTelegram';
-import { sfx, voice } from '../lib/sounds';
+import { sfx, voice, speakCard } from '../lib/sounds';
 
 interface GameOverData {
   winner: string;
@@ -60,8 +60,19 @@ export function GamePage() {
       const me = state.players.find(p => p.id === state.myId);
 
       setGame(prev => {
-        // Play card sound when table grows
-        if (prev && state.table.length > prev.table.length) sfx.card();
+        // Play card sound + voice when table grows (bot played a card)
+        if (prev && state.table.length > prev.table.length) {
+          sfx.card();
+          // Announce the new card the bot just played (last on table)
+          const newPairs = state.table.slice(prev.table.length);
+          newPairs.forEach(pair => {
+            if (pair.defense && !prev.table.find(p => p.defense?.id === pair.defense!.id)) {
+              if (voiceOn) speakCard(pair.defense);
+            } else if (!prev.table.find(p => p.attack.id === pair.attack.id)) {
+              if (voiceOn) speakCard(pair.attack);
+            }
+          });
+        }
         return state;
       });
 
@@ -123,6 +134,7 @@ export function GamePage() {
       socket.emit('attack', { gameId: game.id, cardId: card.id });
       haptic.impact('light');
       sfx.card();
+      if (voiceOn) speakCard(card);
       return;
     }
 
@@ -134,11 +146,13 @@ export function GamePage() {
         socket.emit('defend', { gameId: game.id, cardId: card.id, targetId: undefended[0].attack.id });
         haptic.impact('light');
         sfx.card();
+        if (voiceOn) speakCard(card);
         setDefenseTarget(null);
       } else if (defenseTarget) {
         socket.emit('defend', { gameId: game.id, cardId: card.id, targetId: defenseTarget });
         haptic.impact('light');
         sfx.card();
+        if (voiceOn) speakCard(card);
         setDefenseTarget(null);
       } else {
         flash('Нажми на карту противника сначала');

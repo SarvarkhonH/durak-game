@@ -243,6 +243,7 @@ async function endGame(roomId: string) {
       totalMoves: game.getMoves(),
       aiDifficulty: room.aiDifficulty,
       forcedOutcome: false,
+      gameMode: game.getGameMode(),
     }).catch(() => {});
   }
 

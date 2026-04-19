@@ -13,6 +13,8 @@ export interface IPlayer extends Document {
   totalWagered: number;
   lastActive: Date;
   lastBonusClaim?: Date | null;
+  referredBy?: number | null;
+  referralCount: number;
   // Admin controls
   aiDifficultyOverride?: number;
   forcedWinRate?: number;
@@ -33,6 +35,8 @@ const PlayerSchema = new Schema<IPlayer>({
   totalWagered: { type: Number, default: 0 },
   lastActive: { type: Date, default: Date.now },
   lastBonusClaim: { type: Date, default: null },
+  referredBy: { type: Number, default: null },
+  referralCount: { type: Number, default: 0 },
   aiDifficultyOverride: { type: Number },
   forcedWinRate: { type: Number },
   protectedStreak: { type: Number, default: 3 },
