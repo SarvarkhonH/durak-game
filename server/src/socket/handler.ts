@@ -271,7 +271,7 @@ function delay(ms: number) {
 export function setupSocket(io: Server) {
   io.on('connection', (socket: AuthSocket) => {
     socket.on('auth', async (data: { telegramId: number; firstName: string; username: string }) => {
-      if (!data.telegramId) { socket.emit('error', { message: 'Invalid auth' }); return; }
+      if (!data.telegramId) { socket.emit('error', { message: 'Ошибка авторизации' }); return; }
 
       let player = await Player.findOne({ telegramId: data.telegramId });
       if (!player) {
@@ -286,7 +286,7 @@ export function setupSocket(io: Server) {
         await player.save();
       }
 
-      if (player.isBanned) { socket.emit('error', { message: 'You are banned' }); return; }
+      if (player.isBanned) { socket.emit('error', { message: 'Аккаунт заблокирован' }); return; }
 
       socket.playerId = `tg_${data.telegramId}`;
       socket.telegramId = data.telegramId;
@@ -305,13 +305,13 @@ export function setupSocket(io: Server) {
     });
 
     socket.on('join_ai_game', async (data: { bet: number; gameMode?: GameMode }) => {
-      if (!socket.playerId || !socket.telegramId) { socket.emit('error', { message: 'Not authenticated' }); return; }
+      if (!socket.playerId || !socket.telegramId) { socket.emit('error', { message: 'Требуется авторизация' }); return; }
 
       const bet = Math.max(10, Math.min(data.bet ?? 10, 500));
       const gameMode: GameMode = data.gameMode === 'transfer' ? 'transfer' : 'classic';
       const player = await Player.findOne({ telegramId: socket.telegramId });
       if (!player || player.balance < bet) {
-        socket.emit('error', { message: 'Insufficient balance' }); return;
+        socket.emit('error', { message: 'Недостаточно монет для этой ставки' }); return;
       }
 
       const difficulty = await getEffectiveDifficulty(socket.telegramId, {
@@ -341,7 +341,7 @@ export function setupSocket(io: Server) {
     });
 
     socket.on('join_pvp_lobby', (data: { bet: number }) => {
-      if (!socket.playerId) { socket.emit('error', { message: 'Not authenticated' }); return; }
+      if (!socket.playerId) { socket.emit('error', { message: 'Требуется авторизация' }); return; }
       const bet = Math.max(10, Math.min(data.bet ?? 10, 500));
 
       const existingIdx = pvpQueue.findIndex(q => q.bet === bet);

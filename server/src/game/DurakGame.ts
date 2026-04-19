@@ -74,24 +74,24 @@ export class DurakGame {
   }
 
   attack(playerId: string, cardId: string): { ok: boolean; error?: string } {
-    if (this.state.phase !== 'attack') return { ok: false, error: 'Not attack phase' };
-    if (playerId !== this.state.attackerId) return { ok: false, error: 'Not your turn' };
+    if (this.state.phase !== 'attack') return { ok: false, error: 'Сейчас не фаза атаки' };
+    if (playerId !== this.state.attackerId) return { ok: false, error: 'Сейчас не твой ход' };
 
     const hand = this.state.hands.get(playerId)!;
     const card = hand.find(c => c.id === cardId);
-    if (!card) return { ok: false, error: 'Card not in hand' };
+    if (!card) return { ok: false, error: 'Карта не найдена' };
 
     if (this.state.table.length > 0) {
       const tableRanks = new Set(
         this.state.table.flatMap(p => [p.attack.rank, p.defense?.rank]).filter(Boolean)
       );
-      if (!tableRanks.has(card.rank)) return { ok: false, error: 'Rank not on table' };
+      if (!tableRanks.has(card.rank)) return { ok: false, error: 'Такой ранг не на столе — подкидывай карту того же ранга' };
     }
 
     // Can't attack with more cards than defender has
     const defHand = this.state.hands.get(this.state.defenderId)!;
     const unbeaten = this.state.table.filter(p => !p.defense).length;
-    if (unbeaten + 1 > defHand.length) return { ok: false, error: 'Too many cards' };
+    if (unbeaten + 1 > defHand.length) return { ok: false, error: 'У противника слишком мало карт' };
 
     hand.splice(hand.indexOf(card), 1);
     this.state.table.push({ attack: card });
@@ -101,18 +101,18 @@ export class DurakGame {
   }
 
   defend(playerId: string, cardId: string, targetId: string): { ok: boolean; error?: string } {
-    if (this.state.phase !== 'defend') return { ok: false, error: 'Not defend phase' };
-    if (playerId !== this.state.defenderId) return { ok: false, error: 'Not your turn' };
+    if (this.state.phase !== 'defend') return { ok: false, error: 'Сейчас не фаза защиты' };
+    if (playerId !== this.state.defenderId) return { ok: false, error: 'Сейчас не твой ход' };
 
     const hand = this.state.hands.get(playerId)!;
     const card = hand.find(c => c.id === cardId);
-    if (!card) return { ok: false, error: 'Card not in hand' };
+    if (!card) return { ok: false, error: 'Карта не найдена' };
 
     const pair = this.state.table.find(p => p.attack.id === targetId && !p.defense);
-    if (!pair) return { ok: false, error: 'Target not found or already beaten' };
+    if (!pair) return { ok: false, error: 'Карта уже отбита или не найдена' };
 
     if (!canBeat(pair.attack, card, this.state.trumpSuit)) {
-      return { ok: false, error: 'Cannot beat that card' };
+      return { ok: false, error: 'Этой картой не отбить — нужна карта старше или козырь' };
     }
 
     hand.splice(hand.indexOf(card), 1);
@@ -129,9 +129,9 @@ export class DurakGame {
 
   // ── Transfer Durak ────────────────────────────────────────────────────────
   transfer(playerId: string, cardId: string): { ok: boolean; error?: string } {
-    if (this.state.gameMode !== 'transfer') return { ok: false, error: 'Not transfer mode' };
-    if (this.state.phase !== 'defend') return { ok: false, error: 'Not defend phase' };
-    if (playerId !== this.state.defenderId) return { ok: false, error: 'Not your turn' };
+    if (this.state.gameMode !== 'transfer') return { ok: false, error: 'Режим перевода не включён' };
+    if (this.state.phase !== 'defend') return { ok: false, error: 'Сейчас не фаза защиты' };
+    if (playerId !== this.state.defenderId) return { ok: false, error: 'Сейчас не твой ход' };
 
     // All table cards must be undefended (no partial defense then transfer)
     if (this.state.table.some(p => p.defense)) {
@@ -185,8 +185,8 @@ export class DurakGame {
   }
 
   takeCards(playerId: string): { ok: boolean; error?: string } {
-    if (playerId !== this.state.defenderId) return { ok: false, error: 'Not defender' };
-    if (this.state.table.length === 0) return { ok: false, error: 'Nothing to take' };
+    if (playerId !== this.state.defenderId) return { ok: false, error: 'Только защищающийся берёт карты' };
+    if (this.state.table.length === 0) return { ok: false, error: 'На столе нет карт' };
 
     const hand = this.state.hands.get(playerId)!;
     for (const pair of this.state.table) {
@@ -206,8 +206,8 @@ export class DurakGame {
   }
 
   passAttack(playerId: string): { ok: boolean; error?: string } {
-    if (playerId !== this.state.attackerId) return { ok: false, error: 'Not attacker' };
-    if (this.state.table.some(p => !p.defense)) return { ok: false, error: 'Not all defended yet' };
+    if (playerId !== this.state.attackerId) return { ok: false, error: 'Только атакующий делает бито' };
+    if (this.state.table.some(p => !p.defense)) return { ok: false, error: 'Не все карты отбиты' };
 
     // Cards go to bito (discard) pile
     this.state.bitoCount += this.state.table.reduce((acc, p) => acc + 1 + (p.defense ? 1 : 0), 0);
